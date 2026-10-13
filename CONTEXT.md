@@ -28,6 +28,12 @@ _Avoid_: Series, TV (as a noun)
 **Anime**:
 SIMKL's third media type. Out of scope — never displayed or matched.
 
+### App
+
+**Session**:
+One browser's state on the server, tracked by a cookie and persisted in SQLite; started when a browser first needs one (Plex sign-in) and holds that sign-in. Expires about 400 days after the browser's last visit.
+_Avoid_: Login, user
+
 ### Plex
 
 **Owned server**:

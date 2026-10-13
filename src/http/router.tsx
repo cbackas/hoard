@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { TABS, TitleBatch, TrendingPage } from "../views/Trending.tsx";
+import { session } from "./middleware/session.ts";
 import { validate } from "./validate.ts";
 
 // The regex keeps unknown paths falling through to the 404 (and to live reload) instead of failing validation.
@@ -11,7 +12,8 @@ export const router = new Hono();
 
 router.get("/", (c) => c.redirect("/all"));
 
-router.get(TAB_PATH, validate({ param: { tab: z.enum(TABS) }, query: { offset: z.coerce.number().int().min(0).default(0) } }), (c) => {
+// The session is unused here until Plex sign-in (HOARD-4); it's attached now so returning browsers stay refreshed.
+router.get(TAB_PATH, session, validate({ param: { tab: z.enum(TABS) }, query: { offset: z.coerce.number().int().min(0).default(0) } }), (c) => {
   const { param: { tab }, query: { offset } } = c.get("input");
   c.header("Vary", "HX-Request");
   if (c.req.header("HX-Request")) return c.html(<TitleBatch tab={tab} offset={offset} />);
