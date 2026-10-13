@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { serveStatic } from "@hono/bun";
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import { config } from "../config.ts";
 import { Hello, Home } from "../views/Home.tsx";
 import { liveReload } from "./liveReload.tsx";
@@ -30,6 +31,11 @@ app.route("/", liveReload(PUBLIC_DIR));
 
 app.notFound((c) => c.text("Not found", 404));
 app.onError((error, c) => {
+  if (error instanceof HTTPException) {
+    const log = error.status >= 500 ? console.error : console.warn;
+    log(`${error.status} ${c.req.method} ${c.req.path}: ${error.message}`, error.cause ?? "");
+    return c.text(error.message || "Request failed", error.status);
+  }
   console.error("Unhandled error while serving request:", error);
   return c.text("Internal server error", 500);
 });
