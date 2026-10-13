@@ -1,0 +1,25 @@
+{
+  "name": "plex-gaps",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "postinstall": "mkdir -p public/vendor && cp node_modules/htmx.org/dist/htmx.min.js public/vendor/",
+    "dev": "bun run --parallel dev:css dev:server",
+    "dev:css": "tailwindcss -i src/styles.css -o public/styles.css --watch=always",
+    "dev:server": "FORCE_COLOR=1 bun --watch src/app.ts",
+    "build": "tailwindcss -i src/styles.css -o public/styles.css --minify",
+    "start": "bun run build && NODE_ENV=production bun src/app.ts",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/bun": "^1.0.1",
+    "hono": "^4.13.13",
+    "htmx.org": "^2.0.11"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4",
+    "@types/bun": "latest",
+    "tailwindcss": "^4",
+    "typescript": "^7"
+  }
+}
