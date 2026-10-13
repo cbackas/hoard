@@ -7,8 +7,12 @@ Shows what's popular right now (per SIMKL) and which of those titles are missing
 ### Trending
 
 **Trending list**:
-SIMKL's daily ranking of the 500 most popular titles per media type, in rank order.
+SIMKL's daily ranking of the 500 most popular titles per media type, ordered by how many SIMKL users watched each one today.
 _Avoid_: Popular list, top 500, discover feed
+
+**Tab**:
+Which Trending list is on screen: **All** (Shows and Movies merged, ordered by watches today), **Shows** or **Movies**.
+_Avoid_: Category, section
 
 **Title**:
 A single Movie or Show as it appears in the Trending list.
@@ -56,5 +60,5 @@ A Title on the Trending list that is not Collected — the thing this app exists
 _Avoid_: Missing, wanted
 
 **Filter**:
-How Collected Titles are presented: **All** (shown normally), **Fade** (shown dimmed with an "In Plex" badge) or **Hide** (removed, leaving only Gaps).
-_Avoid_: View mode, toggle
+How Collected Titles are presented: **Off** (shown normally, like any other Title), **Fade** (shown dimmed with an "In Plex" badge) or **Hide** (removed, leaving only Gaps).
+_Avoid_: View mode, toggle, "All" (that's a Tab)
