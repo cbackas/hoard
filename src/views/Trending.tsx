@@ -1,4 +1,4 @@
-import { getTrending, type MediaType, type Title } from "../simkl/trending.ts";
+import { getTrending, getTrendingStaleSince, type MediaType, type Title } from "../simkl/trending.ts";
 import { Layout } from "./Layout.tsx";
 
 export const TABS = ["all", "shows", "movies"] as const;
@@ -31,11 +31,25 @@ export function TrendingPage({ tab: currentTab, offset }: { tab: Tab; offset: nu
         </nav>
       </header>
       <main class="px-6 pb-16">
+        <StaleNotice />
         <ul class="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
           <TitleBatch tab={currentTab} offset={offset} />
         </ul>
       </main>
     </Layout>
+  );
+}
+
+/** Says so when SIMKL couldn't be reached and the list on screen is an older copy. */
+async function StaleNotice() {
+  const staleSince = await getTrendingStaleSince();
+  if (!staleSince) return <></>;
+  const hours = Math.max(1, Math.round((Date.now() - staleSince.getTime()) / (60 * 60 * 1000)));
+  const age = new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(-hours, "hour");
+  return (
+    <p role="status" class="mb-6 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-200">
+      {`Couldn't reach SIMKL, so this list is out of date. It was last updated ${age}.`}
+    </p>
   );
 }
 

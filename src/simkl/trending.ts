@@ -6,6 +6,9 @@ const POSTER_BASE_URL = "https://simkl.in/posters/";
 const CACHE_TTL_MS = 60 * 60 * 1000;
 // Without a limit, a hung SIMKL request would leave every page request waiting on it forever.
 const FETCH_TIMEOUT_MS = 10_000;
+// After a failed refresh, the old list is served and the next attempt waits this long, so requests don't
+// each sit through another timeout while SIMKL is down.
+const RETRY_AFTER_FAILURE_MS = 5 * 60 * 1000;
 
 export type MediaType = "show" | "movie";
 
@@ -69,7 +72,7 @@ const titleList = (mediaType: MediaType) =>
 
 const trendingResponse = z.object({ tv: titleList("show"), movies: titleList("movie") });
 
-let cached: { lists: TrendingLists; fetchedAt: number } | undefined;
+let cached: { lists: TrendingLists; fetchedAt: number; refreshFailedAt?: number } | undefined;
 // Shared by requests that arrive while a fetch is running, so they don't each start one.
 let inFlight: Promise<TrendingLists> | undefined;
 
@@ -79,9 +82,19 @@ export async function getTrending(mediaType: MediaType): Promise<Title[]> {
   return lists[mediaType];
 }
 
+/** When the list being served was fetched, if refreshing it has failed since; undefined while it's fresh. */
+export async function getTrendingStaleSince(): Promise<Date | undefined> {
+  await loadLists();
+  return cached?.refreshFailedAt === undefined ? undefined : new Date(cached.fetchedAt);
+}
+
 function loadLists(): Promise<TrendingLists> {
   if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
     console.debug("SIMKL trending cache hit, age", Math.round((Date.now() - cached.fetchedAt) / 1000), "s");
+    return Promise.resolve(cached.lists);
+  }
+  if (cached?.refreshFailedAt !== undefined && Date.now() - cached.refreshFailedAt < RETRY_AFTER_FAILURE_MS) {
+    console.debug("SIMKL trending refresh failed recently; serving the stale list");
     return Promise.resolve(cached.lists);
   }
   if (inFlight) {
@@ -93,6 +106,12 @@ function loadLists(): Promise<TrendingLists> {
     .then((lists) => {
       cached = { lists, fetchedAt: Date.now() };
       return lists;
+    })
+    .catch((error: unknown) => {
+      if (!cached) throw error;
+      console.warn("SIMKL trending refresh failed; serving the list from", new Date(cached.fetchedAt), error);
+      cached.refreshFailedAt = Date.now();
+      return cached.lists;
     })
     .finally(() => {
       inFlight = undefined;
