@@ -86,10 +86,43 @@ function TitleCard({ title }: { title: Title }) {
       ) : (
         <div class="aspect-2/3 w-full rounded-md bg-neutral-800" />
       )}
-      <p class="mt-2 truncate text-sm font-medium" title={title.name}>
-        {title.name}
+      <p class="mt-2 flex items-center gap-1.5 text-sm font-medium" title={title.name}>
+        <MediaTypeIcon mediaType={title.mediaType} />
+        <span class="truncate">{title.name}</span>
       </p>
       <p class="text-xs text-neutral-400">{details}</p>
     </li>
+  );
+}
+
+const MEDIA_TYPE_LABELS: Record<MediaType, string> = { show: "Show", movie: "Movie" };
+
+/** A small TV or film-strip icon, labelled for screen readers. */
+function MediaTypeIcon({ mediaType }: { mediaType: MediaType }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      role="img"
+      aria-label={MEDIA_TYPE_LABELS[mediaType]}
+      class="size-3.5 shrink-0 text-neutral-500"
+    >
+      <title>{MEDIA_TYPE_LABELS[mediaType]}</title>
+      {mediaType === "show" ? (
+        <>
+          <rect x="2" y="7" width="20" height="14" rx="2" />
+          <path d="m7 2 5 5 5-5" />
+        </>
+      ) : (
+        <>
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="M7 3v18M17 3v18M3 7.5h4M3 12h18M3 16.5h4M17 7.5h4M17 16.5h4" />
+        </>
+      )}
+    </svg>
   );
 }

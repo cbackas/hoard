@@ -9,6 +9,7 @@ export type MediaType = "show" | "movie";
 
 /** A Title as shown on the Trending list. */
 export interface Title {
+  mediaType: MediaType;
   name: string;
   year: number | undefined;
   rating: number | undefined;
@@ -19,7 +20,7 @@ export interface Title {
 
 type TrendingLists = Record<MediaType, Title[]>;
 
-/** A SIMKL trending item, reduced to a Title. Optional fields that are missing or malformed become undefined. */
+/** A SIMKL trending item, reduced to a Title (minus its media type, which comes from its list). Optional fields that are missing or malformed become undefined. */
 const simklItem = z
   .object({
     title: z.string().min(1),
@@ -44,7 +45,7 @@ const simklItem = z
       .catch(undefined),
   })
   .transform(
-    (item): Title => ({
+    (item): Omit<Title, "mediaType"> => ({
       name: item.title,
       year: item.release_date,
       rating: item.ratings?.simkl.rating,
@@ -54,16 +55,17 @@ const simklItem = z
   );
 
 /** A list of SIMKL items as Titles. An unusable item is logged and dropped rather than failing the whole list. */
-const titleList = z
-  .array(
-    simklItem.nullable().catch(({ error, value }) => {
-      console.debug("Skipping unusable SIMKL item:", z.prettifyError(error), value);
-      return null;
-    }),
-  )
-  .transform((titles) => titles.filter((title) => title !== null));
+const titleList = (mediaType: MediaType) =>
+  z
+    .array(
+      simklItem.nullable().catch(({ error, value }) => {
+        console.debug("Skipping unusable SIMKL item:", z.prettifyError(error), value);
+        return null;
+      }),
+    )
+    .transform((titles) => titles.filter((title) => title !== null).map((title): Title => ({ ...title, mediaType })));
 
-const trendingResponse = z.object({ tv: titleList, movies: titleList });
+const trendingResponse = z.object({ tv: titleList("show"), movies: titleList("movie") });
 
 let cached: { lists: TrendingLists; fetchedAt: number } | undefined;
 // Shared by requests that arrive while a fetch is running, so they don't each start one.
