@@ -1,4 +1,4 @@
-# Plex Gaps
+# Hoard
 
 Shows what's trending on SIMKL right now and which of those titles aren't in your Plex library.
 
@@ -28,4 +28,4 @@ All environment variables are optional; see [`.env.example`](.env.example) for d
 | `SIMKL_CLIENT_ID` | SIMKL app client ID, sent with requests when set |
 | `PLEX_URL` | Plex server URL; skips server discovery when set |
 | `APP_URL` | Public URL of this app for the Plex sign-in redirect; derived from the request when unset |
-| `DB_PATH` | SQLite database file (default `./data/plex-gaps.db`) |
+| `DB_PATH` | SQLite database file (default `./data/hoard.db`) |

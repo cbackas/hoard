@@ -42,7 +42,7 @@ export function startServer(config: typeof appConfig) {
   const app = createApp(config);
   const server = Bun.serve({ port: config.port, development: config.isDev, fetch: app.fetch });
 
-  console.info(`Plex Gaps listening on ${server.url}`);
+  console.info(`Hoard listening on ${server.url}`);
   console.debug("Config:", { ...config, simklClientId: config.simklClientId ? "<set>" : undefined });
   return server;
 }

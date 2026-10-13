@@ -22,6 +22,6 @@ export const config = {
   plexUrl: optional("PLEX_URL"),
   /** Public base URL for Plex sign-in redirects; derived from the request Host when unset. */
   appUrl: optional("APP_URL"),
-  dbPath: optional("DB_PATH") ?? "./data/plex-gaps.db",
+  dbPath: optional("DB_PATH") ?? "./data/hoard.db",
   isDev: Bun.env.NODE_ENV !== "production",
 } as const;

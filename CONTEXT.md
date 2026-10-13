@@ -1,4 +1,4 @@
-# Plex Gaps
+# Hoard
 
 Shows what's popular right now (per SIMKL) and which of those titles are missing from the user's Plex library.
 
