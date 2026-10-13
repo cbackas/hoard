@@ -7,7 +7,7 @@ const SECURITY_HEADERS = {
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self'",
-    "img-src 'self' data:",
+    "img-src 'self' data: https://simkl.in",
     "connect-src 'self'",
     "object-src 'none'",
     "base-uri 'none'",
