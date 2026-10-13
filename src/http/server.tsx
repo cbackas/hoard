@@ -3,20 +3,19 @@ import { serveStatic } from "@hono/bun";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { config } from "../config.ts";
-import { Hello, Home } from "../views/Home.tsx";
 import { liveReload } from "./liveReload.tsx";
+import { router } from "./router.tsx";
 import { requestLog } from "./middleware/requestLog.ts";
 import { securityHeaders } from "./middleware/securityHeaders.ts";
 
 const PUBLIC_DIR = resolve(import.meta.dir, "../../public");
 
-const app = new Hono();
+export const app = new Hono();
 
 app.use(requestLog);
 app.use(securityHeaders);
 
-app.get("/", (c) => c.html(<Home />));
-app.get("/hello", (c) => c.html(<Hello at={new Date()} />));
+app.route("/", router);
 app.use(
   "/public/*",
   serveStatic({
@@ -39,11 +38,3 @@ app.onError((error, c) => {
   console.error("Unhandled error while serving request:", error);
   return c.text("Internal server error", 500);
 });
-
-export function startServer(serverConfig: typeof config) {
-  const server = Bun.serve({ port: serverConfig.port, development: serverConfig.isDev, fetch: app.fetch });
-
-  console.info(`Hoard listening on ${server.url}`);
-  console.debug("Config:", { ...serverConfig, simklClientId: serverConfig.simklClientId ? "<set>" : undefined });
-  return server;
-}
