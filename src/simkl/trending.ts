@@ -4,6 +4,8 @@ const TRENDING_URL = "https://data.simkl.in/discover/trending/today_500.json";
 const POSTER_BASE_URL = "https://simkl.in/posters/";
 // SIMKL regenerates the file daily and serves it with max-age=3600, so refetching more often gains nothing.
 const CACHE_TTL_MS = 60 * 60 * 1000;
+// Without a limit, a hung SIMKL request would leave every page request waiting on it forever.
+const FETCH_TIMEOUT_MS = 10_000;
 
 export type MediaType = "show" | "movie";
 
@@ -100,7 +102,7 @@ function loadLists(): Promise<TrendingLists> {
 
 async function fetchLists(): Promise<TrendingLists> {
   const started = performance.now();
-  const response = await fetch(TRENDING_URL);
+  const response = await fetch(TRENDING_URL, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!response.ok) throw new Error(`SIMKL trending request failed: ${response.status} ${response.statusText}`);
   const { tv, movies } = trendingResponse.parse(await response.json());
   const lists = { show: tv, movie: movies };
