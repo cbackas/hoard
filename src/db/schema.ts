@@ -25,6 +25,10 @@ export interface SessionsTable {
   plex_username: string | null;
   /** The Plex account's avatar URL, if Plex gave one. */
   plex_thumb: string | null;
+  /** The Owned server this session reads libraries from: its machine identifier, name and the URI of the Connection in use. */
+  plex_server_id: string | null;
+  plex_server_name: string | null;
+  plex_connection_uri: string | null;
 }
 
 export type Session = Selectable<SessionsTable>;

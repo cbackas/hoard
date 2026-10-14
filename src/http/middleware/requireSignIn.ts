@@ -1,6 +1,7 @@
 import { createMiddleware } from "hono/factory";
 import { isSignedIn, type SignedInSession } from "../../sessions.ts";
-import { SIGN_IN_PATH } from "../../views/SignIn.tsx";
+import { SIGN_IN_PATH } from "../../paths.ts";
+import { navigate } from "../navigate.ts";
 import type { SessionEnv } from "./session.ts";
 
 /**
@@ -10,10 +11,5 @@ import type { SessionEnv } from "./session.ts";
 export const requireSignIn = createMiddleware<SessionEnv & { Variables: { session: SignedInSession } }>(async (c, next) => {
   if (isSignedIn(c.get("session"))) return next();
   console.debug(`Not signed in; sending ${c.req.path} to the sign-in page`);
-  // A redirect would make HTMX swap the sign-in page into the grid; HX-Redirect makes it navigate instead.
-  if (c.req.header("HX-Request")) {
-    c.header("HX-Redirect", SIGN_IN_PATH);
-    return c.body(null, 204);
-  }
-  return c.redirect(SIGN_IN_PATH);
+  return navigate(c, SIGN_IN_PATH);
 });

@@ -1,6 +1,6 @@
+import { SIGN_IN_PATH } from "../paths.ts";
 import { Layout } from "./Layout.tsx";
 
-export const SIGN_IN_PATH = "/sign-in";
 export const SIGN_IN_ERRORS = ["incomplete", "failed"] as const;
 export type SignInError = (typeof SIGN_IN_ERRORS)[number];
 

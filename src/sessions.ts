@@ -2,12 +2,15 @@ import type { ExpressionBuilder } from "kysely";
 import { decrypt, encrypt } from "./crypto.ts";
 import { db } from "./db/index.ts";
 import type { DB, Session } from "./db/schema.ts";
-import type { PlexAccount } from "./plex/tv.ts";
+import type { ChosenServer } from "./plex/server.ts";
+import type { OwnedServer, PlexAccount, PlexConnection } from "./plex/tv.ts";
 
 export type { Session };
 
 /** A Session that holds a Plex token, from signing in through plex.tv. */
 export type SignedInSession = Session & { plex_token: string; plex_username: string };
+/** A Signed in session with an Owned server and a Connection to it chosen. */
+export type ConnectedSession = SignedInSession & { plex_server_id: string; plex_server_name: string; plex_connection_uri: string };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Sessions slide: each recorded visit pushes expiry back this far. 400 days is the longest cookie lifetime browsers allow. */
@@ -34,6 +37,18 @@ export function isSignedIn(session: Session | undefined): session is SignedInSes
   return session?.plex_token != null && session.plex_username != null;
 }
 
+export function isConnected(session: SignedInSession): session is ConnectedSession {
+  return session.plex_server_id != null && session.plex_server_name != null && session.plex_connection_uri != null;
+}
+
+/** The Owned server the session reads libraries from, if one has been chosen. */
+export function chosenServer(session: ConnectedSession): ChosenServer;
+export function chosenServer(session: Session): ChosenServer | undefined;
+export function chosenServer(session: Session): ChosenServer | undefined {
+  const { plex_server_id: id, plex_server_name: name, plex_connection_uri: connectionUri } = session;
+  return id != null && name != null && connectionUri != null ? { id, name, connectionUri } : undefined;
+}
+
 /** The Plex account a signed-in session belongs to. */
 export function sessionAccount(session: SignedInSession): PlexAccount {
   return { username: session.plex_username, thumb: session.plex_thumb ?? undefined };
@@ -58,6 +73,9 @@ export async function createSession(): Promise<Session> {
     plex_token: null,
     plex_username: null,
     plex_thumb: null,
+    plex_server_id: null,
+    plex_server_name: null,
+    plex_connection_uri: null,
   };
   await db.insertInto("sessions").values(session).execute();
   console.debug("Created session", shortId(session.id));
@@ -129,6 +147,29 @@ export async function completeSignIn(session: Session, pinId: number, token: str
   Object.assign(session, signedIn, { id, plex_token: token });
   console.info(`Signed in to Plex as ${account.username} (session ${shortId(id)})`);
   return true;
+}
+
+/** Points the session at an Owned server, reached through the given Connection. */
+export async function setOwnedServer(session: SignedInSession, server: OwnedServer, connection: PlexConnection): Promise<void> {
+  const chosen = { plex_server_id: server.id, plex_server_name: server.name, plex_connection_uri: connection.uri };
+  await db.updateTable("sessions").set(chosen).where("id", "=", session.id).execute();
+  Object.assign(session, chosen);
+  console.info(`Session ${shortId(session.id)} is using Owned server ${server.name} through its ${connection.kind} Connection ${connection.uri}`);
+}
+
+/** Records a new name for the session's Owned server, after it was renamed in Plex. */
+export async function renameOwnedServer(session: Session, name: string): Promise<void> {
+  await db.updateTable("sessions").set({ plex_server_name: name }).where("id", "=", session.id).execute();
+  console.info(`Session ${shortId(session.id)}'s Owned server ${session.plex_server_name} is now called ${name}`);
+  session.plex_server_name = name;
+}
+
+/** Forgets the session's Owned server, e.g. once it no longer is one. */
+export async function clearOwnedServer(session: Session): Promise<void> {
+  const cleared = { plex_server_id: null, plex_server_name: null, plex_connection_uri: null };
+  await db.updateTable("sessions").set(cleared).where("id", "=", session.id).execute();
+  Object.assign(session, cleared);
+  console.debug("Session", shortId(session.id), "no longer has an Owned server");
 }
 
 export async function deleteSession(session: Session): Promise<void> {

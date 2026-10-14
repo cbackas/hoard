@@ -1,4 +1,5 @@
 import { getTrending, getTrendingStaleSince, type MediaType, type Title } from "../simkl/trending.ts";
+import type { ChosenServer } from "../plex/server.ts";
 import type { PlexAccount } from "../plex/tv.ts";
 import { AppLayout } from "./AppLayout.tsx";
 
@@ -14,9 +15,19 @@ const TAB_LABELS: Record<Tab, string> = { all: "All", shows: "Shows", movies: "M
 const BATCH_SIZE = 96;
 const TAB_MEDIA_TYPES: Record<Tab, MediaType[]> = { all: ["show", "movie"], shows: ["show"], movies: ["movie"] };
 
-export function TrendingPage({ tab: currentTab, offset, account }: { tab: Tab; offset: number; account: PlexAccount }) {
+export function TrendingPage({
+  tab: currentTab,
+  offset,
+  account,
+  server,
+}: {
+  tab: Tab;
+  offset: number;
+  account: PlexAccount;
+  server: ChosenServer;
+}) {
   return (
-    <AppLayout account={account} nav={<TabNav currentTab={currentTab} />}>
+    <AppLayout account={account} server={server} nav={<TabNav currentTab={currentTab} />}>
       <StaleNotice />
       <ul class="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
         <TitleBatch tab={currentTab} offset={offset} />

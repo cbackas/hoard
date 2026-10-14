@@ -44,6 +44,10 @@ _Avoid_: Logged in, authenticated
 A Plex Media Server belonging to the signed-in user's own Plex account. Servers shared by friends are not Owned servers.
 _Avoid_: Server (unqualified), shared server
 
+**Connection**:
+One way of reaching the Owned server, as plex.tv lists it: **local** (on the user's network), **remote** (directly over the internet) or **relay** (through Plex's relay, slow and bandwidth-limited). Hoard uses the first that answers, in that order, and only looks for another once it stops answering.
+_Avoid_: Address, endpoint
+
 **Library**:
 A Plex library section of Movie or Show type on the Owned server. Other library types (music, photos) are ignored.
 _Avoid_: Section, collection

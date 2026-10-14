@@ -46,8 +46,6 @@ export const config = {
   port: port(),
   /** Optional until SIMKL enforces it; omitted from requests when unset. */
   simklClientId: optional("SIMKL_CLIENT_ID"),
-  /** Overrides Plex server discovery when set. */
-  plexUrl: optional("PLEX_URL"),
   /** Public origin for Plex sign-in redirects; derived from the request Host when unset. */
   appUrl: appUrl(),
   dbPath: optional("DB_PATH") ?? "./data/hoard.db",
