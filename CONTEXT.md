@@ -34,6 +34,10 @@ SIMKL's third media type. Out of scope — never displayed or matched.
 One browser's state on the server, tracked by a cookie and persisted in SQLite; started when a browser first needs one (Plex sign-in) and holds that sign-in. Expires about 400 days after the browser's last visit.
 _Avoid_: Login, user
 
+**Signed in**:
+A Session that holds a Plex token, from signing in through plex.tv. Only Signed in browsers see Titles; everyone else gets the sign-in page. Signing out deletes the Session.
+_Avoid_: Logged in, authenticated
+
 ### Plex
 
 **Owned server**:

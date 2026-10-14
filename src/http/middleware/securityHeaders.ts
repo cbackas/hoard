@@ -7,11 +7,13 @@ const SECURITY_HEADERS = {
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self'",
-    "img-src 'self' data: https://simkl.in",
+    // Plex account avatar URLs are on plex.tv and redirect to assets.plex.tv for uploaded avatars.
+    "img-src 'self' data: https://simkl.in https://plex.tv https://assets.plex.tv",
     "connect-src 'self'",
     "object-src 'none'",
     "base-uri 'none'",
-    "form-action 'self'",
+    // The sign-in form redirects to Plex, and browsers apply form-action to where a form's redirects lead.
+    "form-action 'self' https://app.plex.tv",
     "frame-ancestors 'none'",
   ].join("; "),
   "X-Content-Type-Options": "nosniff",

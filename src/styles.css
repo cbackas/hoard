@@ -2,3 +2,9 @@
 
 @source not "../public";
 
+@theme {
+  /* Plex's brand gold, for the "Sign in with Plex" button. */
+  --color-plex: #e5a00d;
+  --color-plex-hover: #f0b22b;
+}
+

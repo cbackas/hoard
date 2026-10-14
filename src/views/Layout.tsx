@@ -20,6 +20,7 @@ export function Layout({ title, children }: { title: string; children: Child }) 
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <meta name="htmx-config" content={HTMX_CONFIG} />
+          <meta name="darkreader-lock" />
           <title>{title}</title>
           <link rel="stylesheet" href="/public/styles.css" />
           <script src="/public/vendor/htmx.min.js" defer></script>

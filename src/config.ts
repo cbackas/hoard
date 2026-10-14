@@ -5,6 +5,34 @@ function optional(name: string): string | undefined {
   return value ? value : undefined;
 }
 
+function required(name: string, hint: string): string {
+  const value = optional(name);
+  if (!value) throw new Error(`${name} must be set. ${hint}`);
+  return value;
+}
+
+/** A required 256-bit key, given base64-encoded. */
+function key(name: string): Uint8Array<ArrayBuffer> {
+  const hint = "Generate one with: openssl rand -base64 32";
+  const bytes = new Uint8Array(Buffer.from(required(name, hint), "base64"));
+  if (bytes.length !== 32) throw new Error(`${name} must be 32 bytes, base64-encoded, got ${bytes.length} bytes. ${hint}`);
+  return bytes;
+}
+
+/** APP_URL's origin. Hoard is served from the root of its host, so a path (e.g. "/hoard") isn't supported. */
+function appUrl(): string | undefined {
+  const raw = optional("APP_URL");
+  if (!raw) return undefined;
+  const url = URL.parse(raw);
+  if (!url || (url.protocol !== "http:" && url.protocol !== "https:")) {
+    throw new Error(`APP_URL must be an http(s) URL like https://hoard.example.com, got "${raw}"`);
+  }
+  if (url.pathname !== "/" || url.search || url.hash) {
+    throw new Error(`APP_URL must not have a path, query or fragment (Hoard has to be served from the root), got "${raw}"`);
+  }
+  return url.origin;
+}
+
 function port(): number {
   const raw = optional("PORT") ?? "3000";
   const value = Number(raw);
@@ -20,8 +48,12 @@ export const config = {
   simklClientId: optional("SIMKL_CLIENT_ID"),
   /** Overrides Plex server discovery when set. */
   plexUrl: optional("PLEX_URL"),
-  /** Public base URL for Plex sign-in redirects; derived from the request Host when unset. */
-  appUrl: optional("APP_URL"),
+  /** Public origin for Plex sign-in redirects; derived from the request Host when unset. */
+  appUrl: appUrl(),
   dbPath: optional("DB_PATH") ?? "./data/hoard.db",
+  /** Signs session cookies. Changing it signs everyone out. */
+  sessionSecret: key("SESSION_SECRET"),
+  /** Encrypts secrets stored in the database, such as Plex tokens. Changing it signs everyone out. */
+  encryptionKey: key("ENCRYPTION_KEY"),
   isDev: Bun.env.NODE_ENV !== "production",
 } as const;

@@ -1,5 +1,6 @@
 import { getTrending, getTrendingStaleSince, type MediaType, type Title } from "../simkl/trending.ts";
-import { Layout } from "./Layout.tsx";
+import type { PlexAccount } from "../plex/tv.ts";
+import { AppLayout } from "./AppLayout.tsx";
 
 export const TABS = ["all", "shows", "movies"] as const;
 export type Tab = (typeof TABS)[number];
@@ -13,30 +14,30 @@ const TAB_LABELS: Record<Tab, string> = { all: "All", shows: "Shows", movies: "M
 const BATCH_SIZE = 96;
 const TAB_MEDIA_TYPES: Record<Tab, MediaType[]> = { all: ["show", "movie"], shows: ["show"], movies: ["movie"] };
 
-export function TrendingPage({ tab: currentTab, offset }: { tab: Tab; offset: number }) {
+export function TrendingPage({ tab: currentTab, offset, account }: { tab: Tab; offset: number; account: PlexAccount }) {
   return (
-    <Layout title="Hoard">
-      <header class="flex items-center justify-between gap-6 px-6 py-6">
-        <h1 class="text-3xl font-bold tracking-tight">Hoard</h1>
-        <nav class="flex gap-1 rounded-lg bg-neutral-900 p-1">
-          {TABS.map((tab) => (
-            <a
-              href={`/${tab}`}
-              aria-current={tab === currentTab ? "page" : undefined}
-              class="rounded-md px-4 py-1.5 text-sm font-medium text-neutral-400 hover:text-neutral-100 aria-[current=page]:bg-neutral-700 aria-[current=page]:text-neutral-100"
-            >
-              {TAB_LABELS[tab]}
-            </a>
-          ))}
-        </nav>
-      </header>
-      <main class="px-6 pb-16">
-        <StaleNotice />
-        <ul class="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
-          <TitleBatch tab={currentTab} offset={offset} />
-        </ul>
-      </main>
-    </Layout>
+    <AppLayout account={account} nav={<TabNav currentTab={currentTab} />}>
+      <StaleNotice />
+      <ul class="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
+        <TitleBatch tab={currentTab} offset={offset} />
+      </ul>
+    </AppLayout>
+  );
+}
+
+function TabNav({ currentTab }: { currentTab: Tab }) {
+  return (
+    <nav class="flex gap-1 rounded-lg bg-neutral-900 p-1">
+      {TABS.map((tab) => (
+        <a
+          href={`/${tab}`}
+          aria-current={tab === currentTab ? "page" : undefined}
+          class="rounded-md px-4 py-1.5 text-sm font-medium text-neutral-400 hover:text-neutral-100 aria-[current=page]:bg-neutral-700 aria-[current=page]:text-neutral-100"
+        >
+          {TAB_LABELS[tab]}
+        </a>
+      ))}
+    </nav>
   );
 }
 
