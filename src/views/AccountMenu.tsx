@@ -1,6 +1,7 @@
-import { SERVER_MENU_PATH, SIGN_OUT_PATH } from "../paths.ts";
+import { LIBRARY_REFRESH_PATH, SERVER_MENU_PATH, SIGN_OUT_PATH } from "../paths.ts";
 import type { ChosenServer } from "../plex/server.ts";
 import type { OwnedServer, PlexAccount } from "../plex/tv.ts";
+import { LIBRARY_STATUS_ID } from "./LibraryStatus.tsx";
 import { ServerButton } from "./ServerButton.tsx";
 
 const MENU_ITEM = "w-full px-4 py-2 text-left text-sm text-neutral-100 hover:bg-neutral-800";
@@ -12,7 +13,16 @@ const MENU_ITEM = "w-full px-4 py-2 text-left text-sm text-neutral-100 hover:bg-
 const MENU_PANEL = "m-0 inset-auto w-48 rounded-lg border border-neutral-800 bg-neutral-900 p-0 py-1 text-neutral-100 shadow-lg";
 
 /** The account's round avatar (or its initial, without one); clicking it opens a menu with the account's actions. */
-export function AccountMenu({ account: { username, thumb }, server }: { account: PlexAccount; server: ChosenServer | undefined }) {
+export function AccountMenu({
+  account: { username, thumb },
+  server,
+  canRefreshLibrary,
+}: {
+  account: PlexAccount;
+  server: ChosenServer | undefined;
+  /** Whether the page shows the Library index counts, which a refresh updates. */
+  canRefreshLibrary: boolean;
+}) {
   return (
     <>
       <button
@@ -27,6 +37,20 @@ export function AccountMenu({ account: { username, thumb }, server }: { account:
       <div id="account-menu" popover="auto" class={`${MENU_PANEL} mt-2 [position-anchor:--account-menu] [position-area:bottom_span-left]`}>
         <p class="truncate border-b border-neutral-800 px-4 py-2 text-sm text-neutral-400">{username}</p>
         <ServerMenu server={server} />
+        {canRefreshLibrary && (
+          // Swaps the header's counts for their "Refreshing…" state, which polls until the rebuild is done, and closes the menu.
+          <button
+            type="button"
+            popovertarget="account-menu"
+            popovertargetaction="hide"
+            class={`${MENU_ITEM} cursor-pointer`}
+            hx-post={LIBRARY_REFRESH_PATH}
+            hx-target={`#${LIBRARY_STATUS_ID}`}
+            hx-swap="outerHTML"
+          >
+            Refresh library
+          </button>
+        )}
         <form method="post" action={SIGN_OUT_PATH}>
           <button class={MENU_ITEM}>Sign out</button>
         </form>

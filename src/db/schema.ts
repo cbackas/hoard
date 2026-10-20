@@ -5,6 +5,8 @@ import type { Selectable } from "kysely";
 export interface DB {
   settings: SettingsTable;
   sessions: SessionsTable;
+  library_indexes: LibraryIndexesTable;
+  library_external_ids: LibraryExternalIdsTable;
 }
 
 /** App-wide key/value pairs, e.g. the Plex client identifier. */
@@ -32,3 +34,21 @@ export interface SessionsTable {
 }
 
 export type Session = Selectable<SessionsTable>;
+
+/** The latest Library index built for each Owned server, keyed by machine identifier; its External IDs are in library_external_ids. */
+export interface LibraryIndexesTable {
+  server_id: string;
+  /** Unix milliseconds. */
+  built_at: number;
+  movie_count: number;
+  show_count: number;
+}
+
+/** One row per External ID in an Owned server's Library index, e.g. "imdb://tt0111161". */
+export interface LibraryExternalIdsTable {
+  server_id: string;
+  media_type: "movie" | "show";
+  external_id: string;
+  /** A Show's episode count; null for Movies. */
+  episode_count: number | null;
+}

@@ -1,4 +1,5 @@
 import { getTrending, getTrendingStaleSince, type MediaType, type Title } from "../simkl/trending.ts";
+import type { LibraryIndexState } from "../libraryIndex.ts";
 import type { ChosenServer } from "../plex/server.ts";
 import type { PlexAccount } from "../plex/tv.ts";
 import { AppLayout } from "./AppLayout.tsx";
@@ -20,14 +21,16 @@ export function TrendingPage({
   offset,
   account,
   server,
+  library,
 }: {
   tab: Tab;
   offset: number;
   account: PlexAccount;
   server: ChosenServer;
+  library: LibraryIndexState;
 }) {
   return (
-    <AppLayout account={account} server={server} nav={<TabNav currentTab={currentTab} />}>
+    <AppLayout account={account} server={server} library={library} nav={<TabNav currentTab={currentTab} />}>
       <StaleNotice />
       <ul class="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
         <TitleBatch tab={currentTab} offset={offset} />

@@ -6,3 +6,6 @@ export const SIGN_OUT_PATH = "/sign-out";
 export const SERVERS_PATH = "/servers";
 /** The account menu's server submenu fetches its items from here. */
 export const SERVER_MENU_PATH = `${SERVERS_PATH}/menu`;
+/** The header's Library index counts, which poll here while the index builds. */
+export const LIBRARY_PATH = "/library";
+export const LIBRARY_REFRESH_PATH = `${LIBRARY_PATH}/refresh`;

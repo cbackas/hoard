@@ -1,11 +1,21 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { config } from "../config.ts";
+import { libraryIndex, refreshLibraryIndex } from "../libraryIndex.ts";
 import { chooseOwnedServer, refreshOwnedServers } from "../ownedServers.ts";
-import { SERVER_MENU_PATH, SERVERS_PATH, SIGN_IN_CALLBACK_PATH, SIGN_IN_PATH, SIGN_OUT_PATH } from "../paths.ts";
+import {
+  LIBRARY_PATH,
+  LIBRARY_REFRESH_PATH,
+  SERVER_MENU_PATH,
+  SERVERS_PATH,
+  SIGN_IN_CALLBACK_PATH,
+  SIGN_IN_PATH,
+  SIGN_OUT_PATH,
+} from "../paths.ts";
 import { authUrl, checkPin, createPin, getUser } from "../plex/tv.ts";
 import { chosenServer, isSignedIn, sessionAccount, setPendingPin } from "../sessions.ts";
 import { ServerMenuItems } from "../views/AccountMenu.tsx";
+import { LibraryStatus } from "../views/LibraryStatus.tsx";
 import { ServersPage, serversUrl } from "../views/Servers.tsx";
 import { SIGN_IN_ERRORS, SignInPage, signInUrl } from "../views/SignIn.tsx";
 import { TABS, TitleBatch, TrendingPage } from "../views/Trending.tsx";
@@ -28,13 +38,29 @@ router.get(
   requireSignIn,
   requireOwnedServer,
   validate({ param: { tab: z.enum(TABS) }, query: { offset: z.coerce.number().int().min(0).default(0) } }),
-  (c) => {
+  async (c) => {
     const { param: { tab }, query: { offset } } = c.get("input");
     const current = c.get("session");
     c.header("Vary", "HX-Request");
     if (c.req.header("HX-Request")) return c.html(<TitleBatch tab={tab} offset={offset} />);
-    return c.html(<TrendingPage tab={tab} offset={offset} account={sessionAccount(current)} server={chosenServer(current)} />);
+    return c.html(
+      <TrendingPage
+        tab={tab}
+        offset={offset}
+        account={sessionAccount(current)}
+        server={chosenServer(current)}
+        library={await libraryIndex(current)}
+      />,
+    );
   },
+);
+
+router.get(LIBRARY_PATH, session, requireSignIn, requireOwnedServer, async (c) =>
+  c.html(<LibraryStatus state={await libraryIndex(c.get("session"))} />),
+);
+
+router.post(LIBRARY_REFRESH_PATH, session, requireSignIn, requireOwnedServer, async (c) =>
+  c.html(<LibraryStatus state={await refreshLibraryIndex(c.get("session"))} />),
 );
 
 router.get(SERVERS_PATH, session, requireSignIn, validate({ query: { unreachableId: z.string().optional() } }), async (c) => {
