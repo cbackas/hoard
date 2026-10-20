@@ -23,6 +23,8 @@ export interface Title {
   watched: number;
   /** Its External IDs in Plex's form, e.g. "imdb://tt0111161", for matching against the Library index. */
   externalIds: string[];
+  /** A Show's episode count on SIMKL, including announced episodes that haven't aired yet. Undefined for a Movie. */
+  totalEpisodes: number | undefined;
 }
 
 /** An External ID that's missing or doesn't look right becomes undefined, rather than failing the item. */
@@ -57,6 +59,8 @@ const simklItem = z
     ids: z
       .object({ imdb: externalId(/^tt\d+$/), tmdb: externalId(/^\d+$/), tvdb: externalId(/^\d+$/) })
       .catch({ imdb: undefined, tmdb: undefined, tvdb: undefined }),
+    // Shows only.
+    total_episodes: z.number().int().positive().optional().catch(undefined),
   })
   .transform(
     (item): Omit<Title, "mediaType"> => ({
@@ -68,6 +72,7 @@ const simklItem = z
       externalIds: Object.entries(item.ids)
         .filter(([, id]) => id !== undefined)
         .map(([provider, id]) => `${provider}://${id}`),
+      totalEpisodes: item.total_episodes,
     }),
   );
 

@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 import { config } from "../config.ts";
+import { episodeCounter } from "../episodeCounts.ts";
 import { libraryIndex, refreshLibraryIndex } from "../libraryIndex.ts";
 import { chooseOwnedServer, refreshOwnedServers } from "../ownedServers.ts";
 import {
@@ -12,13 +13,14 @@ import {
   SIGN_IN_PATH,
   SIGN_OUT_PATH,
 } from "../paths.ts";
-import { authUrl, checkPin, createPin, getUser } from "../plex/tv.ts";
+import { PlexClient } from "../plex/client.ts";
+import { authUrl, checkPin, createPin } from "../plex/tv.ts";
 import { chosenServer, isSignedIn, sessionAccount, setPendingPin } from "../sessions.ts";
 import { ServerMenuItems } from "../views/AccountMenu.tsx";
 import { LibraryStatus } from "../views/LibraryStatus.tsx";
 import { ServersPage, serversUrl } from "../views/Servers.tsx";
 import { SIGN_IN_ERRORS, SignInPage, signInUrl } from "../views/SignIn.tsx";
-import { DEFAULT_FILTER, FILTERS, TABS, TitleBatch, TrendingPage } from "../views/Trending.tsx";
+import { DEFAULT_EPISODE_MODE, DEFAULT_FILTER, EPISODE_MODES, FILTERS, TABS, TitleBatch, TrendingPage } from "../views/Trending.tsx";
 import { requireOwnedServer } from "./middleware/requireOwnedServer.ts";
 import { requireSignIn } from "./middleware/requireSignIn.ts";
 import { endSession, session, signInSession, startSession, type SessionEnv } from "./middleware/session.ts";
@@ -39,20 +41,28 @@ router.get(
   requireOwnedServer,
   validate({
     param: { tab: z.enum(TABS) },
-    // An unknown filter falls back to the default rather than failing, like a missing one.
-    query: { offset: z.coerce.number().int().min(0).default(0), filter: z.enum(FILTERS).catch(DEFAULT_FILTER) },
+    // An unknown setting falls back to the default rather than failing, like a missing one.
+    query: {
+      offset: z.coerce.number().int().min(0).default(0),
+      filter: z.enum(FILTERS).catch(DEFAULT_FILTER),
+      episodes: z.enum(EPISODE_MODES).catch(DEFAULT_EPISODE_MODE),
+    },
   }),
   async (c) => {
-    const { param: { tab }, query: { offset, filter } } = c.get("input");
+    const { param: { tab }, query: { offset, ...settings } } = c.get("input");
     const current = c.get("session");
     const library = await libraryIndex(current);
+    const countEpisodes = episodeCounter(current);
     c.header("Vary", "HX-Request");
-    if (c.req.header("HX-Request")) return c.html(<TitleBatch tab={tab} offset={offset} filter={filter} index={library.index} />);
+    if (c.req.header("HX-Request")) {
+      return c.html(<TitleBatch tab={tab} offset={offset} settings={settings} index={library.index} countEpisodes={countEpisodes} />);
+    }
     return c.html(
       <TrendingPage
         tab={tab}
         offset={offset}
-        filter={filter}
+        settings={settings}
+        countEpisodes={countEpisodes}
         account={sessionAccount(current)}
         server={chosenServer(current)}
         library={library}
@@ -144,7 +154,7 @@ router.get(SIGN_IN_CALLBACK_PATH, session, async (c: Context<SessionEnv>) => {
       console.debug("Plex PIN", pinId, "wasn't approved");
       return c.redirect(signInUrl("incomplete"));
     }
-    await signInSession(c, current, pinId, pin.authToken, await getUser(pin.authToken));
+    await signInSession(c, current, pinId, pin.authToken, await new PlexClient(pin.authToken).user());
   } catch (error) {
     console.warn("Couldn't finish Plex sign-in:", error);
     return c.redirect(signInUrl("failed"));

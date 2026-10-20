@@ -1,5 +1,6 @@
-import { findConnection, type PlexServer, plexServer, stillAnswers } from "./plex/server.ts";
-import { getOwnedServers, type OwnedServer } from "./plex/tv.ts";
+import { PlexClient } from "./plex/client.ts";
+import { findConnection, type PlexServer, stillAnswers } from "./plex/server.ts";
+import type { OwnedServer } from "./plex/tv.ts";
 import {
   chosenServer,
   clearOwnedServer,
@@ -27,7 +28,7 @@ export type ServerProblem =
  */
 export async function listOwnedServers(session: SignedInSession): Promise<OwnedServer[] | undefined> {
   try {
-    return await getOwnedServers(session.plex_token);
+    return await plexClient(session).ownedServers();
   } catch (error) {
     console.warn("Couldn't list Owned servers:", error);
     return undefined;
@@ -109,7 +110,12 @@ export async function chooseOwnedServer(
   return (await connect(session, server)) ? "connected" : "unreachable";
 }
 
+/** Plex, as the session's signed-in account. */
+export function plexClient(session: SignedInSession): PlexClient {
+  return new PlexClient(session.plex_token);
+}
+
 /** Requests to the session's Owned server, through its Connection in use. */
 export function connectedServer(session: ConnectedSession): PlexServer {
-  return plexServer(chosenServer(session), session.plex_token);
+  return plexClient(session).server(chosenServer(session));
 }

@@ -1,5 +1,6 @@
 import { getTrending, getTrendingStaleSince, type MediaType, type Title } from "../simkl/trending.ts";
-import { isCollected, type LibraryIndex, type LibraryIndexState } from "../libraryIndex.ts";
+import type { EpisodeCounter } from "../episodeCounts.ts";
+import { type CollectionStatus, collectionStatus, type LibraryIndex, type LibraryIndexState } from "../libraryIndex.ts";
 import type { ChosenServer } from "../plex/server.ts";
 import type { PlexAccount } from "../plex/tv.ts";
 import { AppLayout } from "./AppLayout.tsx";
@@ -17,10 +18,24 @@ export const DEFAULT_FILTER: Filter = "fade";
 
 const FILTER_LABELS: Record<Filter, string> = { off: "Off", fade: "Fade", hide: "Hide" };
 
-/** A Tab's URL, leaving out the default filter and a zero offset so the usual URL is just "/all". */
-function trendingUrl(tab: Tab, filter: Filter, offset = 0): string {
+/** Whether a Partially collected Show counts as Collected ("any" episodes) or as a Gap ("complete" only). */
+export const EPISODE_MODES = ["any", "complete"] as const;
+export type EpisodeMode = (typeof EPISODE_MODES)[number];
+export const DEFAULT_EPISODE_MODE: EpisodeMode = "any";
+
+const EPISODE_MODE_LABELS: Record<EpisodeMode, string> = { any: "Any episodes", complete: "Complete only" };
+
+/** The settings menu's choices, carried in the URL. */
+export interface Settings {
+  filter: Filter;
+  episodes: EpisodeMode;
+}
+
+/** A Tab's URL, leaving out default settings and a zero offset so the usual URL is just "/all". */
+function trendingUrl(tab: Tab, { filter, episodes }: Settings, offset = 0): string {
   const query = new URLSearchParams();
   if (filter !== DEFAULT_FILTER) query.set("filter", filter);
+  if (episodes !== DEFAULT_EPISODE_MODE) query.set("episodes", episodes);
   if (offset > 0) query.set("offset", String(offset));
   const search = query.toString();
   return search ? `/${tab}?${search}` : `/${tab}`;
@@ -36,40 +51,42 @@ const TAB_MEDIA_TYPES: Record<Tab, MediaType[]> = { all: ["show", "movie"], show
 export function TrendingPage({
   tab: currentTab,
   offset,
-  filter,
+  settings,
   account,
   server,
   library,
+  countEpisodes,
 }: {
   tab: Tab;
   offset: number;
-  filter: Filter;
+  settings: Settings;
   account: PlexAccount;
   server: ChosenServer;
   library: LibraryIndexState;
+  countEpisodes: EpisodeCounter;
 }) {
   return (
     <AppLayout
       account={account}
       server={server}
       library={library}
-      nav={<TabNav currentTab={currentTab} filter={filter} />}
-      actions={<FilterMenu tab={currentTab} currentFilter={filter} />}
+      nav={<TabNav currentTab={currentTab} settings={settings} />}
+      actions={<SettingsMenu tab={currentTab} settings={settings} />}
     >
       <StaleNotice />
       <ul class="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
-        <TitleBatch tab={currentTab} offset={offset} filter={filter} index={library.index} />
+        <TitleBatch tab={currentTab} offset={offset} settings={settings} index={library.index} countEpisodes={countEpisodes} />
       </ul>
     </AppLayout>
   );
 }
 
-function TabNav({ currentTab, filter }: { currentTab: Tab; filter: Filter }) {
+function TabNav({ currentTab, settings }: { currentTab: Tab; settings: Settings }) {
   return (
     <nav class="flex gap-1 rounded-lg bg-neutral-900 p-1">
       {TABS.map((tab) => (
         <a
-          href={trendingUrl(tab, filter)}
+          href={trendingUrl(tab, settings)}
           aria-current={tab === currentTab ? "page" : undefined}
           class="rounded-md px-4 py-1.5 text-sm font-medium text-neutral-400 hover:text-neutral-100 aria-[current=page]:bg-neutral-700 aria-[current=page]:text-neutral-100"
         >
@@ -86,13 +103,23 @@ const FILTER_DESCRIPTIONS: Record<Filter, string> = {
   hide: "Show only titles not in Plex",
 };
 
-/** A button showing the current Filter that opens a menu to choose another; each choice reloads the Tab from the top. */
-function FilterMenu({ tab, currentFilter }: { tab: Tab; currentFilter: Filter }) {
+const EPISODE_MODE_DESCRIPTIONS: Record<EpisodeMode, string> = {
+  any: "Count a show once Plex has any of it",
+  complete: "Keep shows with missing episodes visible",
+};
+
+/**
+ * A button showing the current Filter that opens a menu of the settings: the Filter, and on Tabs with Shows, whether
+ * Partially collected Shows count as Collected. Each choice reloads the Tab from the top.
+ */
+function SettingsMenu({ tab, settings }: { tab: Tab; settings: Settings }) {
+  const hasShows = TAB_MEDIA_TYPES[tab].includes("show");
+  const label = `Titles in Plex: ${FILTER_LABELS[settings.filter]}${hasShows ? `, shows: ${EPISODE_MODE_LABELS[settings.episodes]}` : ""}`;
   return (
     <>
       <button
         popovertarget="filter-menu"
-        aria-label={`Titles in Plex: ${FILTER_LABELS[currentFilter]}`}
+        aria-label={label}
         class="flex cursor-pointer items-center gap-2 rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-neutral-100 [anchor-name:--filter-menu] hover:bg-neutral-800"
       >
         <svg
@@ -107,7 +134,7 @@ function FilterMenu({ tab, currentFilter }: { tab: Tab; currentFilter: Filter })
         >
           <path d="M3 4h18l-7 8.5V19l-4 2v-8.5z" />
         </svg>
-        {FILTER_LABELS[currentFilter]}
+        {FILTER_LABELS[settings.filter]}
       </button>
       {/* Below the button, right edges lined up. */}
       <div
@@ -115,24 +142,52 @@ function FilterMenu({ tab, currentFilter }: { tab: Tab; currentFilter: Filter })
         popover="auto"
         class={`${MENU_PANEL} mt-2 w-64 [position-anchor:--filter-menu] [position-area:bottom_span-left]`}
       >
-        <p class="border-b border-neutral-800 px-4 py-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
-          Titles in Plex
-        </p>
+        <MenuHeading>Titles in Plex</MenuHeading>
         {FILTERS.map((filter) => (
-          <a
-            href={trendingUrl(tab, filter)}
-            aria-current={filter === currentFilter ? "true" : undefined}
-            class={`${MENU_ITEM} flex items-start gap-2`}
-          >
-            <span class="w-4 shrink-0 text-amber-400">{filter === currentFilter ? "✓" : ""}</span>
-            <span>
-              <span class="block">{FILTER_LABELS[filter]}</span>
-              <span class="block text-xs text-neutral-400">{FILTER_DESCRIPTIONS[filter]}</span>
-            </span>
-          </a>
+          <MenuChoice
+            href={trendingUrl(tab, { ...settings, filter })}
+            current={filter === settings.filter}
+            label={FILTER_LABELS[filter]}
+            description={FILTER_DESCRIPTIONS[filter]}
+          />
         ))}
+        {hasShows && (
+          <>
+            <MenuHeading>Shows in Plex</MenuHeading>
+            {EPISODE_MODES.map((episodes) => (
+              <MenuChoice
+                href={trendingUrl(tab, { ...settings, episodes })}
+                current={episodes === settings.episodes}
+                label={EPISODE_MODE_LABELS[episodes]}
+                description={EPISODE_MODE_DESCRIPTIONS[episodes]}
+              />
+            ))}
+          </>
+        )}
       </div>
     </>
+  );
+}
+
+/** A section heading in the settings menu, ruled off from what's above it. */
+function MenuHeading({ children }: { children: string }) {
+  return (
+    <p class="border-b border-neutral-800 px-4 py-2 text-xs font-medium uppercase tracking-wide text-neutral-500 [&:not(:first-child)]:mt-1 [&:not(:first-child)]:border-t">
+      {children}
+    </p>
+  );
+}
+
+/** A settings menu link, ticked when it's the current choice. */
+function MenuChoice({ href, current, label, description }: { href: string; current: boolean; label: string; description: string }) {
+  return (
+    <a href={href} aria-current={current ? "true" : undefined} class={`${MENU_ITEM} flex items-start gap-2`}>
+      <span class="w-4 shrink-0 text-amber-400">{current ? "✓" : ""}</span>
+      <span>
+        <span class="block">{label}</span>
+        <span class="block text-xs text-neutral-400">{description}</span>
+      </span>
+    </a>
   );
 }
 
@@ -149,33 +204,51 @@ async function StaleNotice() {
   );
 }
 
+const GAP: CollectionStatus = { status: "gap" };
+/** How long a batch waits for episode counts it started. The first counts of the day can take longer; they carry on in the background. */
+const EPISODE_COUNT_WAIT_MS = 1500;
+
 /**
  * A batch of a tab's Trending list starting at offset, ending with a "Load more" item that swaps itself for the next
  * batch. With the Hide filter the offset counts only the Titles left after hiding. Without an index yet, nothing is
- * Collected.
+ * Collected. With "complete" episodes, a Partially collected Show counts as a Gap and shows how many of its episodes
+ * Plex has; Shows are only checked for that with "complete" episodes, as it takes requests to Plex.
  */
 export async function TitleBatch({
   tab,
   offset,
-  filter,
+  settings,
   index,
+  countEpisodes,
 }: {
   tab: Tab;
   offset: number;
-  filter: Filter;
+  settings: Settings;
   index: LibraryIndex | undefined;
+  countEpisodes: EpisodeCounter;
 }) {
+  const { filter, episodes } = settings;
   // SIMKL ranks each list by watched, so sorting on it merges lists into one ranking. The sort is stable,
   // so a single list keeps SIMKL's order.
   const lists = await Promise.all(TAB_MEDIA_TYPES[tab].map(getTrending));
-  const all = lists
-    .flat()
-    .sort((a, b) => b.watched - a.watched)
-    .map((title) => ({ title, collected: index !== undefined && isCollected(title, index) }));
+  const ranked = lists.flat().sort((a, b) => b.watched - a.watched);
+  const statuses = () =>
+    ranked.map((title) => {
+      const collection = index === undefined ? GAP : collectionStatus(title, index, episodes === "complete" ? countEpisodes : undefined);
+      return { title, collection, collected: collection.status === "collected" };
+    });
+  let all = statuses();
+  if (episodes === "complete") {
+    // Working out the statuses started counting the episodes of any Show whose counts were unknown or out of date.
+    // Recounting a Show already counted is quick, so waiting a little means the page is up to date, not one load behind.
+    await countEpisodes.settled(EPISODE_COUNT_WAIT_MS);
+    all = statuses();
+  }
   const titles = filter === "hide" ? all.filter(({ collected }) => !collected) : all;
   const collectedCount = all.filter(({ collected }) => collected).length;
+  const partialCount = all.filter(({ collection }) => collection.status === "partial").length;
   console.debug(
-    `Tab ${tab}, filter ${filter}, offset ${offset}: ${collectedCount} of ${all.length} Titles Collected${index ? "" : " (no Library index yet)"}`,
+    `Tab ${tab}, filter ${filter}, episodes ${episodes}, offset ${offset}: ${collectedCount} of ${all.length} Titles Collected, ${partialCount} Shows Partially collected${index ? "" : " (no Library index yet)"}`,
   );
   const end = offset + BATCH_SIZE;
   const nextOffset = end < titles.length ? end : undefined;
@@ -184,14 +257,18 @@ export async function TitleBatch({
   }
   return (
     <>
-      {titles.slice(offset, end).map(({ title, collected }) => (
-        <TitleCard title={title} faded={collected && filter === "fade"} />
+      {titles.slice(offset, end).map(({ title, collection, collected }) => (
+        <TitleCard
+          title={title}
+          faded={collected && filter === "fade"}
+          partial={collection.status === "partial" ? collection : undefined}
+        />
       ))}
       {nextOffset === undefined ? null : (
         <li class="col-span-full flex justify-center pt-4">
           <button
             class="rounded-md bg-amber-500 px-4 py-2 font-semibold text-neutral-950 hover:bg-amber-400"
-            hx-get={trendingUrl(tab, filter, nextOffset)}
+            hx-get={trendingUrl(tab, settings, nextOffset)}
             hx-target="closest li"
             hx-swap="outerHTML"
           >
@@ -203,8 +280,19 @@ export async function TitleBatch({
   );
 }
 
-/** A Title's poster and details; faded (dimmed, with an "In Plex" badge) when it's Collected under the Fade filter. */
-function TitleCard({ title, faded }: { title: Title; faded: boolean }) {
+/**
+ * A Title's poster and details; faded (dimmed, with an "In Plex" badge) when it's Collected under the Fade filter.
+ * partial is set for a Partially collected Show shown as a Gap, adding how many of its episodes Plex has.
+ */
+function TitleCard({
+  title,
+  faded,
+  partial,
+}: {
+  title: Title;
+  faded: boolean;
+  partial: { episodes: number; airedEpisodes: number } | undefined;
+}) {
   const details = [title.year, title.rating === undefined ? undefined : `★ ${title.rating.toFixed(1)}`]
     .filter((detail) => detail !== undefined)
     .join(" · ");
@@ -233,7 +321,17 @@ function TitleCard({ title, faded }: { title: Title; faded: boolean }) {
         <MediaTypeIcon mediaType={title.mediaType} />
         <span class="truncate">{title.name}</span>
       </p>
-      <p class="text-xs text-neutral-400">{details}</p>
+      <p class="text-xs text-neutral-400">
+        {details}
+        {partial && (
+          <>
+            {details ? " · " : ""}
+            <span class="text-amber-400" title={`Plex has ${partial.episodes} of the ${partial.airedEpisodes} episodes aired`}>
+              {`${partial.episodes}/${partial.airedEpisodes} eps`}
+            </span>
+          </>
+        )}
+      </p>
     </li>
   );
 }

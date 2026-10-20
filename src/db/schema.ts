@@ -51,4 +51,8 @@ export interface LibraryExternalIdsTable {
   external_id: string;
   /** A Show's episode count; null for Movies. */
   episode_count: number | null;
+  /** A Show's key on the Owned server, e.g. "83637"; null for Movies. */
+  plex_rating_key: string | null;
+  /** A Show's ID in Plex's online metadata, e.g. "plex://show/5d9c086eba6eb9001fba3d37"; null for Movies and Shows without one. */
+  plex_guid: string | null;
 }
