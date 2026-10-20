@@ -21,7 +21,12 @@ export interface Title {
   posterUrl: string | undefined;
   /** How many SIMKL users watched it today; what SIMKL ranks the Trending list by. */
   watched: number;
+  /** Its External IDs in Plex's form, e.g. "imdb://tt0111161", for matching against the Library index. */
+  externalIds: string[];
 }
+
+/** An External ID that's missing or doesn't look right becomes undefined, rather than failing the item. */
+const externalId = (pattern: RegExp) => z.string().regex(pattern).optional().catch(undefined);
 
 type TrendingLists = Record<MediaType, Title[]>;
 
@@ -48,6 +53,10 @@ const simklItem = z
       .transform((poster) => `${POSTER_BASE_URL}${poster}_m.webp`)
       .optional()
       .catch(undefined),
+    // SIMKL gives the TMDB and TVDB numbers as strings, e.g. { imdb: "tt23148340", tmdb: "213562", tvdb: "426669" }.
+    ids: z
+      .object({ imdb: externalId(/^tt\d+$/), tmdb: externalId(/^\d+$/), tvdb: externalId(/^\d+$/) })
+      .catch({ imdb: undefined, tmdb: undefined, tvdb: undefined }),
   })
   .transform(
     (item): Omit<Title, "mediaType"> => ({
@@ -56,6 +65,9 @@ const simklItem = z
       rating: item.ratings?.simkl.rating,
       posterUrl: item.poster,
       watched: item.watched,
+      externalIds: Object.entries(item.ids)
+        .filter(([, id]) => id !== undefined)
+        .map(([provider, id]) => `${provider}://${id}`),
     }),
   );
 

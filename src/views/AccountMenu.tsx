@@ -2,15 +2,8 @@ import { LIBRARY_REFRESH_PATH, SERVER_MENU_PATH, SIGN_OUT_PATH } from "../paths.
 import type { ChosenServer } from "../plex/server.ts";
 import type { OwnedServer, PlexAccount } from "../plex/tv.ts";
 import { LIBRARY_STATUS_ID } from "./LibraryStatus.tsx";
+import { MENU_ITEM, MENU_PANEL } from "./menu.ts";
 import { ServerButton } from "./ServerButton.tsx";
-
-const MENU_ITEM = "w-full px-4 py-2 text-left text-sm text-neutral-100 hover:bg-neutral-800";
-/**
- * A menu panel. The menus are popovers, which the browser closes on a click outside or Esc without any
- * JavaScript; this undoes the popover defaults (centred in the viewport, padded) so CSS anchor positioning
- * can place it next to its button.
- */
-const MENU_PANEL = "m-0 inset-auto w-48 rounded-lg border border-neutral-800 bg-neutral-900 p-0 py-1 text-neutral-100 shadow-lg";
 
 /** The account's round avatar (or its initial, without one); clicking it opens a menu with the account's actions. */
 export function AccountMenu({

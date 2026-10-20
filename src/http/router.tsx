@@ -18,7 +18,7 @@ import { ServerMenuItems } from "../views/AccountMenu.tsx";
 import { LibraryStatus } from "../views/LibraryStatus.tsx";
 import { ServersPage, serversUrl } from "../views/Servers.tsx";
 import { SIGN_IN_ERRORS, SignInPage, signInUrl } from "../views/SignIn.tsx";
-import { TABS, TitleBatch, TrendingPage } from "../views/Trending.tsx";
+import { DEFAULT_FILTER, FILTERS, TABS, TitleBatch, TrendingPage } from "../views/Trending.tsx";
 import { requireOwnedServer } from "./middleware/requireOwnedServer.ts";
 import { requireSignIn } from "./middleware/requireSignIn.ts";
 import { endSession, session, signInSession, startSession, type SessionEnv } from "./middleware/session.ts";
@@ -37,19 +37,25 @@ router.get(
   session,
   requireSignIn,
   requireOwnedServer,
-  validate({ param: { tab: z.enum(TABS) }, query: { offset: z.coerce.number().int().min(0).default(0) } }),
+  validate({
+    param: { tab: z.enum(TABS) },
+    // An unknown filter falls back to the default rather than failing, like a missing one.
+    query: { offset: z.coerce.number().int().min(0).default(0), filter: z.enum(FILTERS).catch(DEFAULT_FILTER) },
+  }),
   async (c) => {
-    const { param: { tab }, query: { offset } } = c.get("input");
+    const { param: { tab }, query: { offset, filter } } = c.get("input");
     const current = c.get("session");
+    const library = await libraryIndex(current);
     c.header("Vary", "HX-Request");
-    if (c.req.header("HX-Request")) return c.html(<TitleBatch tab={tab} offset={offset} />);
+    if (c.req.header("HX-Request")) return c.html(<TitleBatch tab={tab} offset={offset} filter={filter} index={library.index} />);
     return c.html(
       <TrendingPage
         tab={tab}
         offset={offset}
+        filter={filter}
         account={sessionAccount(current)}
         server={chosenServer(current)}
-        library={await libraryIndex(current)}
+        library={library}
       />,
     );
   },

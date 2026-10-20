@@ -3,6 +3,7 @@ import type { LibraryExternalIdsTable } from "./db/schema.ts";
 import { connectedServer } from "./ownedServers.ts";
 import { getLibraries, getLibraryItems } from "./plex/library.ts";
 import { type ConnectedSession, shortId } from "./sessions.ts";
+import type { Title } from "./simkl/trending.ts";
 
 // The Library index of each Owned server. Matching reads it from memory; it's also saved to the database (see
 // ADR 0007), so a restart picks up where it left off instead of indexing again. Rebuilt in the background.
@@ -66,6 +67,16 @@ export async function refreshLibraryIndex(session: ConnectedSession): Promise<Li
   if (state.building) console.debug(`Library index of ${session.plex_server_name} is already building`);
   else startBuild(session, state, `session ${shortId(session.id)} asked for a refresh`);
   return { index: state.index, building: state.building !== undefined };
+}
+
+/**
+ * Whether the Title is Collected: any of its External IDs is in the index of its own media type. Movies and Shows
+ * are never matched against each other, as TMDB numbers them separately (see ADR 0002). A Show with any episodes
+ * counts.
+ */
+export function isCollected(title: Title, index: LibraryIndex): boolean {
+  const ids = title.mediaType === "movie" ? index.movieIds : index.showEpisodes;
+  return title.externalIds.some((id) => ids.has(id));
 }
 
 /** The server's state, reading its saved index from the database the first time it's asked for. */
