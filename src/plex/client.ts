@@ -21,6 +21,23 @@ const season = z.object({
   nextEpisodeOriginallyAvailableAt: date,
 });
 const episode = z.object({ originallyAvailableAt: date });
+// A lookup by External ID; nothing in Metadata when the service doesn't know it.
+const matchesResponse = z.object({ MediaContainer: z.object({ Metadata: z.array(z.unknown()).default([]) }) });
+// With includeChildren, a Show comes with its seasons. childCount leaves specials out.
+const matchedShow = z.object({
+  ratingKey: z.string().min(1),
+  title: z.string().optional(),
+  childCount: z.number().int().nonnegative().default(0),
+  Children: z.object({ Metadata: z.array(z.unknown()).default([]) }).optional(),
+});
+/** The type number Plex's metadata service uses for Shows. */
+const SHOW_TYPE = 2;
+
+/** How much of a Show has aired: seasons with an episode aired, and episodes aired. Specials (season 0) aren't counted. */
+export interface AiredCounts {
+  seasons: number;
+  episodes: number;
+}
 
 /**
  * Plex, as a signed-in account: plex.tv for the account itself, Plex's online metadata, and the account's Owned
@@ -68,22 +85,58 @@ export class PlexClient {
   }
 
   /**
-   * How many episodes of the Show with this Plex ID (e.g. "plex://show/5d9c086eba6eb9001fba3d37") aired before today,
-   * a "YYYY-MM-DD" date; specials (season 0) aren't counted. A season that has finished airing is counted from its
-   * total, so only a season with episodes still to come has its episodes fetched.
+   * How much of the Show with these External IDs (e.g. "tvdb://426669") aired before today, a "YYYY-MM-DD" date, or
+   * undefined if Plex's metadata service knows none of them. The IDs are tried in turn until one is found. A season
+   * that has finished airing is counted from its total, so only a season with episodes still to come has its
+   * episodes fetched; usually it's a single request.
    */
-  async airedEpisodeCount(plexGuid: string, today: string): Promise<number> {
-    let aired = 0;
-    for (const raw of await this.#children(plexGuid.replace("plex://show/", ""))) {
+  async airedCounts(externalIds: string[], today: string): Promise<AiredCounts | undefined> {
+    for (const id of externalIds) {
+      const path = `/library/metadata/matches?type=${SHOW_TYPE}&includeChildren=1&guid=${encodeURIComponent(id)}`;
+      const [raw] = (await this.#metadata.get(path, matchesResponse)).MediaContainer.Metadata;
+      if (raw === undefined) {
+        console.debug(`Plex's metadata service doesn't know ${id}`);
+        continue;
+      }
+      const parsed = matchedShow.safeParse(raw);
+      if (!parsed.success) {
+        console.debug(`Skipping ${id}, which Plex described unexpectedly:`, z.prettifyError(parsed.error));
+        continue;
+      }
+      const { ratingKey, title, childCount, Children } = parsed.data;
+      let seasons = Children?.Metadata ?? [];
+      // The seasons came complete with every Show tried, even one with 54, but if some are missing they're fetched in full.
+      const regularSeasons = seasons.filter((raw) => (season.safeParse(raw).data?.index ?? 0) > 0).length;
+      if (regularSeasons < childCount) {
+        console.debug(`${id} came with ${regularSeasons} of its ${childCount} seasons; fetching them all`);
+        seasons = await this.#children(ratingKey);
+      }
+      const counts = await this.#countAired(id, seasons, today);
+      console.debug(`${title ?? id} (${id}) aired ${counts.episodes} episodes in ${counts.seasons} seasons before ${today}`);
+      return counts;
+    }
+    return undefined;
+  }
+
+  /** The account's Owned server, through its Connection in use. */
+  server(chosen: ChosenServer): PlexServer {
+    return new PlexServer(chosen, this.#token);
+  }
+
+  /** Counts a Show's seasons and episodes aired before today; id is the External ID it was found by, for logs. */
+  async #countAired(id: string, seasons: unknown[], today: string): Promise<AiredCounts> {
+    const counts: AiredCounts = { seasons: 0, episodes: 0 };
+    for (const raw of seasons) {
       const parsed = season.safeParse(raw);
       if (!parsed.success) {
-        console.debug(`Skipping a season of ${plexGuid} Plex described unexpectedly:`, z.prettifyError(parsed.error));
+        console.debug(`Skipping a season of ${id} Plex described unexpectedly:`, z.prettifyError(parsed.error));
         continue;
       }
       const { ratingKey, index, leafCount, lastEpisodeOriginallyAvailableAt: last, nextEpisodeOriginallyAvailableAt: next } = parsed.data;
       if (index <= 0 || last === undefined) continue;
       if (next === undefined && last < today) {
-        aired += leafCount;
+        counts.seasons++;
+        counts.episodes += leafCount;
         continue;
       }
       const episodes = await this.#children(ratingKey);
@@ -91,15 +144,11 @@ export class PlexClient {
         const airDate = episode.safeParse(raw).data?.originallyAvailableAt;
         return airDate !== undefined && airDate < today;
       }).length;
-      console.debug(`${plexGuid} season ${index} is still airing: ${airedInSeason} of ${episodes.length} episodes aired before ${today}`);
-      aired += airedInSeason;
+      console.debug(`${id} season ${index} is still airing: ${airedInSeason} of ${episodes.length} episodes aired before ${today}`);
+      if (airedInSeason > 0) counts.seasons++;
+      counts.episodes += airedInSeason;
     }
-    return aired;
-  }
-
-  /** The account's Owned server, through its Connection in use. */
-  server(chosen: ChosenServer): PlexServer {
-    return new PlexServer(chosen, this.#token);
+    return counts;
   }
 
   /** Every child of the metadata item with this key: a Show's seasons or a season's episodes. */

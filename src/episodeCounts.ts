@@ -1,10 +1,12 @@
+import { countAiredSoon, knownAiredCounts } from "./airedCounts.ts";
 import type { IndexedShow } from "./libraryIndex.ts";
-import { connectedServer, plexClient } from "./ownedServers.ts";
+import { connectedServer } from "./ownedServers.ts";
 import type { ConnectedSession } from "./sessions.ts";
+import type { Title } from "./simkl/trending.ts";
 
 // How many of a Show's episodes are in Plex and how many have aired, for telling whether it's Partially collected.
-// Counting takes a few requests per Show, so it's done in the background and kept in memory: asking for a count
-// that isn't known or is out of date starts counting it, and a page can wait a little for those to finish.
+// Counting takes requests, so it's done in the background: asking for a count that isn't known or is out of date
+// starts counting it, and a page can wait a little for those to finish. Aired counts come from airedCounts.ts.
 
 /** A Show's regular episodes (specials left out) in Plex, and aired before today. */
 export interface EpisodeCounts {
@@ -13,8 +15,11 @@ export interface EpisodeCounts {
 }
 
 export interface EpisodeCounter {
-  /** A Show's EpisodeCounts if they're known, starting to count them if they aren't or are out of date; indexBuiltAt is its Library index's. */
-  count(show: IndexedShow, indexBuiltAt: number): EpisodeCounts | undefined;
+  /**
+   * A Show's EpisodeCounts if they're known, starting to count them if they aren't or are out of date; show is the
+   * Title's Show in Plex, and indexBuiltAt its Library index's.
+   */
+  count(title: Title, show: IndexedShow, indexBuiltAt: number): EpisodeCounts | undefined;
   /** Settles once every count started so far has finished, or after maxWaitMs if that's sooner. */
   settled(maxWaitMs: number): Promise<void>;
 }
@@ -34,25 +39,22 @@ interface Count {
   failedAt?: number;
 }
 
-/** Aired episodes, by Plex ID. They only change as days pass, so a count is good until midnight. */
-const airedCounts = new Map<string, Count>();
 /** Episodes in Plex, by Owned server and key. A count is good for IN_PLEX_TTL_MS, or until the server's Library index is rebuilt. */
 const inPlexCounts = new Map<string, Count>();
 /** Counts started and not yet finished. */
 const unfinished = new Set<Promise<void>>();
 
 /**
- * The session's EpisodeCounter. A Show without a Plex ID can't be counted, so it never has EpisodeCounts. While a
- * count that's out of date is redone, the previous one is used.
+ * The session's EpisodeCounter. A Show Plex's online metadata doesn't know never has EpisodeCounts. While a count
+ * that's out of date is redone, the previous one is used.
  */
 export function episodeCounter(session: ConnectedSession): EpisodeCounter {
   return {
-    count(show, indexBuiltAt) {
-      const { plexGuid, ratingKey } = show;
-      if (plexGuid === undefined) return undefined;
-      const aired = cachedCount(airedCounts, plexGuid, startOfToday(), `aired episodes of ${plexGuid}`, () =>
-        plexClient(session).airedEpisodeCount(plexGuid, today()),
-      );
+    count(title, show, indexBuiltAt) {
+      const { ratingKey } = show;
+      const aired = knownAiredCounts(title)?.episodes;
+      const counting = countAiredSoon(session, title);
+      if (counting) track(counting);
       const inPlex = cachedCount(
         inPlexCounts,
         `${session.plex_server_id} ${ratingKey}`,
@@ -97,11 +99,17 @@ function cachedCount(counts: Map<string, Count>, key: string, freshSince: number
       })
       .finally(() => {
         current.counting = false;
-        unfinished.delete(counting);
       });
-    unfinished.add(counting);
+    track(counting);
   }
   return current.value;
+}
+
+/** Adds a count to the ones settled waits on, until it finishes. */
+function track(counting: Promise<void>): void {
+  if (unfinished.has(counting)) return;
+  unfinished.add(counting);
+  void counting.finally(() => unfinished.delete(counting));
 }
 
 let running = 0;
@@ -120,13 +128,4 @@ async function inTurn<T>(job: () => Promise<T>): Promise<T> {
     if (next) next();
     else running--;
   }
-}
-
-/** Today's date where Hoard runs, e.g. "2026-10-20". */
-function today(): string {
-  return new Date().toLocaleDateString("en-CA");
-}
-
-function startOfToday(): number {
-  return new Date().setHours(0, 0, 0, 0);
 }

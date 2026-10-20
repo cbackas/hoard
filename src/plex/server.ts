@@ -25,8 +25,6 @@ const sectionsResponse = z.object({
 const item = z.object({
   title: z.string(),
   ratingKey: z.string().min(1),
-  // e.g. "plex://show/5d9c086eba6eb9001fba3d37" for Plex's own agents; a legacy agent's guid isn't one Plex's online metadata knows.
-  guid: z.string().optional(),
   // Missing for items matched by Plex's legacy agents, which only have a single agent-specific guid.
   Guid: z.array(z.object({ id: z.string() })).default([]),
   // A Show's episode count.
@@ -56,13 +54,12 @@ export interface Library {
 
 /**
  * An item in a Library: its External IDs, e.g. "imdb://tt0111161", its key on the server, and for a Show, its episode
- * count (specials included) and its ID in Plex's online metadata, if it has one.
+ * count (specials included).
  */
 export interface LibraryItem {
   externalIds: string[];
   ratingKey: string;
   episodeCount: number | undefined;
-  plexGuid: string | undefined;
 }
 
 /**
@@ -168,8 +165,8 @@ export class PlexServer {
         skipped++;
         continue;
       }
-      const { ratingKey, guid, leafCount } = parsed.data;
-      items.push({ externalIds, ratingKey, episodeCount: leafCount, plexGuid: guid?.startsWith("plex://show/") ? guid : undefined });
+      const { ratingKey, leafCount } = parsed.data;
+      items.push({ externalIds, ratingKey, episodeCount: leafCount });
     }
     if (skipped > 0) console.debug(`Library ${library.title}: left out ${skipped} items without a usable External ID`);
     return items;

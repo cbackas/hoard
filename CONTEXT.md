@@ -66,8 +66,11 @@ _Avoid_: GUID, provider ID
 A Title whose External ID appears in the Library index of the matching type. A Show with any episodes in Plex is Collected, unless **Complete only** is chosen. "In library" means the same thing and is fine to use.
 _Avoid_: Owned, have
 
+**Aired counts**:
+How much of a Show has aired, going by Plex's online metadata: its seasons with an episode aired, and its episodes aired. Specials aren't counted, and an episode counts as aired from the day after its air date. Shown on every Show card, e.g. "5 seasons · 62 eps"; counted for every Show on the Trending list once a day.
+
 **Partially collected**:
-A Collected Show where Plex has fewer episodes than have aired, going by Plex's online metadata. Specials aren't counted, and an episode counts as aired from the day after its air date. "Incomplete" means the same thing and is fine to use.
+A Collected Show where Plex has fewer episodes than its Aired counts. "Incomplete" means the same thing and is fine to use.
 
 **Any episodes / Complete only**:
 The setting, on Tabs with Shows, for whether a Partially collected Show counts as Collected (**Any episodes**, the default) or as a Gap shown with how many of its aired episodes Plex has, e.g. "94/293 eps" (**Complete only**).

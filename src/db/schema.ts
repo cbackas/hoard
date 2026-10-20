@@ -7,6 +7,7 @@ export interface DB {
   sessions: SessionsTable;
   library_indexes: LibraryIndexesTable;
   library_external_ids: LibraryExternalIdsTable;
+  aired_counts: AiredCountsTable;
 }
 
 /** App-wide key/value pairs, e.g. the Plex client identifier. */
@@ -53,6 +54,14 @@ export interface LibraryExternalIdsTable {
   episode_count: number | null;
   /** A Show's key on the Owned server, e.g. "83637"; null for Movies. */
   plex_rating_key: string | null;
-  /** A Show's ID in Plex's online metadata, e.g. "plex://show/5d9c086eba6eb9001fba3d37"; null for Movies and Shows without one. */
-  plex_guid: string | null;
+}
+
+/** How much of each Trending Show has aired, by SIMKL ID, as last counted from Plex's online metadata. */
+export interface AiredCountsTable {
+  simkl_id: number;
+  /** Both null when Plex's online metadata doesn't know the Show. */
+  seasons: number | null;
+  episodes: number | null;
+  /** The day it was counted for, "YYYY-MM-DD"; it's counted again the next day. */
+  counted_on: string;
 }

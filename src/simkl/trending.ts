@@ -15,6 +15,8 @@ export type MediaType = "show" | "movie";
 /** A Title as shown on the Trending list. */
 export interface Title {
   mediaType: MediaType;
+  /** Its ID on SIMKL, which every Title has. */
+  simklId: number;
   name: string;
   year: number | undefined;
   rating: number | undefined;
@@ -55,21 +57,26 @@ const simklItem = z
       .transform((poster) => `${POSTER_BASE_URL}${poster}_m.webp`)
       .optional()
       .catch(undefined),
-    // SIMKL gives the TMDB and TVDB numbers as strings, e.g. { imdb: "tt23148340", tmdb: "213562", tvdb: "426669" }.
-    ids: z
-      .object({ imdb: externalId(/^tt\d+$/), tmdb: externalId(/^\d+$/), tvdb: externalId(/^\d+$/) })
-      .catch({ imdb: undefined, tmdb: undefined, tvdb: undefined }),
+    // SIMKL gives its own ID as a number and the TMDB and TVDB numbers as strings, e.g.
+    // { simkl_id: 2033877, imdb: "tt23148340", tmdb: "213562", tvdb: "426669" }. Without a SIMKL ID the item is unusable.
+    ids: z.object({
+      simkl_id: z.number().int().positive(),
+      imdb: externalId(/^tt\d+$/),
+      tmdb: externalId(/^\d+$/),
+      tvdb: externalId(/^\d+$/),
+    }),
     // Shows only.
     total_episodes: z.number().int().positive().optional().catch(undefined),
   })
   .transform(
-    (item): Omit<Title, "mediaType"> => ({
+    ({ ids: { simkl_id, ...externalIds }, ...item }): Omit<Title, "mediaType"> => ({
+      simklId: simkl_id,
       name: item.title,
       year: item.release_date,
       rating: item.ratings?.simkl.rating,
       posterUrl: item.poster,
       watched: item.watched,
-      externalIds: Object.entries(item.ids)
+      externalIds: Object.entries(externalIds)
         .filter(([, id]) => id !== undefined)
         .map(([provider, id]) => `${provider}://${id}`),
       totalEpisodes: item.total_episodes,

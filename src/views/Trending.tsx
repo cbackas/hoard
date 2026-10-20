@@ -1,6 +1,8 @@
 import { getTrending, getTrendingStaleSince, type MediaType, type Title } from "../simkl/trending.ts";
+import { knownAiredCounts } from "../airedCounts.ts";
 import type { EpisodeCounter } from "../episodeCounts.ts";
 import { type CollectionStatus, collectionStatus, type LibraryIndex, type LibraryIndexState } from "../libraryIndex.ts";
+import { showCountsUrl } from "../paths.ts";
 import type { ChosenServer } from "../plex/server.ts";
 import type { PlexAccount } from "../plex/tv.ts";
 import { AppLayout } from "./AppLayout.tsx";
@@ -205,6 +207,8 @@ async function StaleNotice() {
 }
 
 const GAP: CollectionStatus = { status: "gap" };
+/** How long a card whose counts were still being counted waits before asking for them again. */
+const SHOW_COUNTS_RETRY_DELAY = "2s";
 /** How long a batch waits for episode counts it started. The first counts of the day can take longer; they carry on in the background. */
 const EPISODE_COUNT_WAIT_MS = 1500;
 
@@ -281,8 +285,8 @@ export async function TitleBatch({
 }
 
 /**
- * A Title's poster and details; faded (dimmed, with an "In Plex" badge) when it's Collected under the Fade filter.
- * partial is set for a Partially collected Show shown as a Gap, adding how many of its episodes Plex has.
+ * A Title's poster and details, and for a Show, its ShowCounts; faded (dimmed, with an "In Plex" badge) when it's
+ * Collected under the Fade filter. partial is set for a Partially collected Show shown as a Gap.
  */
 function TitleCard({
   title,
@@ -321,18 +325,54 @@ function TitleCard({
         <MediaTypeIcon mediaType={title.mediaType} />
         <span class="truncate">{title.name}</span>
       </p>
-      <p class="text-xs text-neutral-400">
-        {details}
-        {partial && (
-          <>
-            {details ? " · " : ""}
-            <span class="text-amber-400" title={`Plex has ${partial.episodes} of the ${partial.airedEpisodes} episodes aired`}>
-              {`${partial.episodes}/${partial.airedEpisodes} eps`}
-            </span>
-          </>
-        )}
-      </p>
+      <p class="text-xs text-neutral-400">{details}</p>
+      {title.mediaType === "show" && <ShowCounts title={title} partial={partial} retry={false} />}
     </li>
+  );
+}
+
+/**
+ * A Show's seasons and episodes aired, e.g. "5 seasons · 62 eps", with partial (when it's Partially collected and
+ * shown as a Gap) putting how many of the episodes Plex has in their place. Nothing when Plex's online metadata
+ * doesn't know the Show. Until it's been counted, a placeholder the same size, which fetches the counts once it's on
+ * screen; retry is set when they were still being counted then, so it asks again shortly.
+ */
+export function ShowCounts({
+  title,
+  partial,
+  retry,
+}: {
+  title: Title;
+  partial: { episodes: number; airedEpisodes: number } | undefined;
+  retry: boolean;
+}) {
+  const counts = knownAiredCounts(title);
+  if (counts === null) return <></>;
+  if (counts === undefined) {
+    return (
+      <p
+        class="text-xs"
+        aria-busy="true"
+        hx-get={showCountsUrl(title.simklId)}
+        hx-trigger={retry ? `load delay:${SHOW_COUNTS_RETRY_DELAY}` : "intersect once"}
+        hx-swap="outerHTML"
+      >
+        <span class="inline-block h-3 w-24 animate-pulse rounded bg-neutral-800 align-middle" />
+      </p>
+    );
+  }
+  if (counts.seasons === 0) return <p class="text-xs text-neutral-400">Not aired yet</p>;
+  return (
+    <p class="text-xs text-neutral-400">
+      {`${counts.seasons} ${counts.seasons === 1 ? "season" : "seasons"} · `}
+      {partial ? (
+        <span class="text-amber-400" title={`Plex has ${partial.episodes} of the ${partial.airedEpisodes} episodes aired`}>
+          {`${partial.episodes}/${partial.airedEpisodes} eps`}
+        </span>
+      ) : (
+        `${counts.episodes} ${counts.episodes === 1 ? "ep" : "eps"}`
+      )}
+    </p>
   );
 }
 

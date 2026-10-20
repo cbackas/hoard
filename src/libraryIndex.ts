@@ -22,8 +22,6 @@ export interface IndexedShow {
   episodes: number;
   /** Its key on the server. */
   ratingKey: string;
-  /** Its ID in Plex's online metadata, e.g. "plex://show/5d9c086eba6eb9001fba3d37"; only Shows matched by Plex's own agents have one. */
-  plexGuid: string | undefined;
 }
 
 /** The External IDs, e.g. "imdb://tt0111161", of everything in an Owned server's Libraries, Movies and Shows apart. */
@@ -102,7 +100,7 @@ export function collectionStatus(title: Title, index: LibraryIndex, countEpisode
   const show = matches.reduce<IndexedShow | undefined>((best, match) => (best && best.episodes >= match.episodes ? best : match), undefined);
   if (!show) return { status: "gap" };
   if (!countEpisodes || (title.totalEpisodes !== undefined && show.episodes >= title.totalEpisodes)) return { status: "collected" };
-  const counts = countEpisodes.count(show, index.builtAt);
+  const counts = countEpisodes.count(title, show, index.builtAt);
   if (counts && counts.inPlex < counts.aired) return { status: "partial", episodes: counts.inPlex, airedEpisodes: counts.aired };
   return { status: "collected" };
 }
@@ -159,13 +157,13 @@ async function buildIndex(session: ConnectedSession): Promise<LibraryIndex> {
   for (const library of libraries) {
     const items = await server.libraryItems(library);
     console.debug(`Library ${library.title}: indexed ${items.length} items`);
-    for (const { externalIds, ratingKey, episodeCount, plexGuid } of items) {
+    for (const { externalIds, ratingKey, episodeCount } of items) {
       if (library.mediaType === "movie") {
         index.movieCount++;
         for (const id of externalIds) index.movieIds.add(id);
       } else {
         index.showCount++;
-        const show: IndexedShow = { episodes: episodeCount ?? 0, ratingKey, plexGuid };
+        const show: IndexedShow = { episodes: episodeCount ?? 0, ratingKey };
         for (const id of externalIds) addShow(index.shows, id, show);
       }
     }
@@ -193,7 +191,6 @@ async function saveIndex(serverId: string, index: LibraryIndex): Promise<void> {
       external_id: id,
       episode_count: null,
       plex_rating_key: null,
-      plex_guid: null,
     })),
     ...[...index.shows].map(([id, show]) => ({
       server_id: serverId,
@@ -201,7 +198,6 @@ async function saveIndex(serverId: string, index: LibraryIndex): Promise<void> {
       external_id: id,
       episode_count: show.episodes,
       plex_rating_key: show.ratingKey,
-      plex_guid: show.plexGuid ?? null,
     })),
   ];
   const summary = { built_at: index.builtAt, movie_count: index.movieCount, show_count: index.showCount };
@@ -230,7 +226,7 @@ async function loadIndex(serverId: string, serverName: string): Promise<LibraryI
     }
     const rows = await db
       .selectFrom("library_external_ids")
-      .select(["media_type", "external_id", "episode_count", "plex_rating_key", "plex_guid"])
+      .select(["media_type", "external_id", "episode_count", "plex_rating_key"])
       .where("server_id", "=", serverId)
       .execute();
     const index: LibraryIndex = {
@@ -243,11 +239,7 @@ async function loadIndex(serverId: string, serverName: string): Promise<LibraryI
     for (const row of rows) {
       if (row.media_type === "movie") index.movieIds.add(row.external_id);
       else {
-        index.shows.set(row.external_id, {
-          episodes: row.episode_count ?? 0,
-          ratingKey: row.plex_rating_key ?? "",
-          plexGuid: row.plex_guid ?? undefined,
-        });
+        index.shows.set(row.external_id, { episodes: row.episode_count ?? 0, ratingKey: row.plex_rating_key ?? "" });
       }
     }
     const age = Math.round((Date.now() - saved.built_at) / 60_000);

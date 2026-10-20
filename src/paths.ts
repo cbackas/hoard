@@ -9,3 +9,6 @@ export const SERVER_MENU_PATH = `${SERVERS_PATH}/menu`;
 /** The header's Library index counts, which poll here while the index builds. */
 export const LIBRARY_PATH = "/library";
 export const LIBRARY_REFRESH_PATH = `${LIBRARY_PATH}/refresh`;
+/** A Show card's season and episode counts, which it fetches from here when they weren't known as it was drawn. */
+export const SHOW_COUNTS_PATH = "/shows/:simklId{[0-9]+}/counts";
+export const showCountsUrl = (simklId: number) => `/shows/${simklId}/counts`;
